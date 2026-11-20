@@ -1,0 +1,466 @@
+<template>
+  <div class="menu-page">
+    <transition name="fade">
+      <div class="title" v-if="showText">菜單 Menu</div>
+    </transition>
+    <div class="container">
+      <transition name="slide">
+        <div class="options-frame" v-if="showElement">
+          <div v-for="(opt, index) in OptionsData" :key="index">
+            <div
+              class="option"
+              @click="ClickOptions(opt)"
+              :class="{ active: opt.click }"
+            >
+              {{ opt.name }}
+            </div>
+          </div>
+        </div>
+      </transition>
+      <transition name="slide">
+        <div class="dish-box-frame" v-if="showElement">
+          <div
+            class="dish-frame"
+            v-for="(dish, index) in filteredList"
+            :key="index"
+            @click="ClickDish(dish)"
+          >
+            <img :src="dish.image" />
+            <div class="dish-info-frame">
+              <div class="dish-name">{{ dish.name }}</div>
+              <div class="dish-price">${{ dish.price }}</div>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </div>
+
+    <div
+      class="overlay"
+      v-show="showOrderPage"
+      @click="showOrderPage = false"
+    ></div>
+    <transition name="slide-order">
+      <OrderDish class="order-page" v-show="showOrderPage" />
+    </transition>
+  </div>
+
+  <i
+    class="fa-regular fa-circle-question"
+    id="help-btn"
+    @click="showMenuGuide = true"
+  ></i>
+
+  <div class="overlay" @click="CloseDishGuide" v-if="showDishClickGuide"></div>
+  <transition name="slide-guide">
+    <DishClickGuide class="dish-guide" v-if="showDishClickGuide" />
+  </transition>
+
+  <div class="overlay" @click="CloseCartGuide" v-if="showCartGuide"></div>
+  <transition name="slide-guide">
+    <PutInCartGuide class="dish-guide" v-if="showCartGuide" />
+  </transition>
+
+  <div
+    class="overlay"
+    @click="showMenuGuide = false"
+    v-if="showMenuGuide"
+  ></div>
+  <transition name="slide-guide">
+    <MenuGuide class="menu-guide" v-if="showMenuGuide" />
+  </transition>
+</template>
+
+<script>
+import { ref, onMounted } from "vue";
+import { useRouter } from "vue-router";
+
+import { useUserStore } from "@/store/user";
+import { errorUiStore } from "@/store/error";
+
+import OptionsDataRaw from "../assets/data/optionsData.json";
+import OrderDish from "./OrderDish.vue";
+import DishClickGuide from "./guide/dishClick.vue";
+import PutInCartGuide from "./guide/putInCartClick.vue";
+import MenuGuide from "./guide/menuGuide.vue";
+
+import { dishAmount } from "../components/OrderDish.vue";
+import { showMobile } from "../App.vue";
+
+export const orderList = ref({});
+export const showOrderPage = ref(false);
+export const showCartGuide = ref(false);
+
+export default {
+  name: "MenuPage",
+  components: {
+    OrderDish,
+    DishClickGuide,
+    PutInCartGuide,
+    MenuGuide,
+  },
+  setup() {
+    const dishList = ref([]);
+    const filteredList = ref([]);
+    const showText = ref(false);
+    const showElement = ref(false);
+    const OptionsData = ref(OptionsDataRaw); // 修正成 reactive 狀態
+    const showDishClickGuide = ref(false);
+    const showMenuGuide = ref(false);
+
+    const router = useRouter();
+    const userStore = useUserStore();
+    const errorStore = errorUiStore();
+
+    const GetDishData = async () => {
+      const response = await fetch("/data/dishData.json");
+      const data = await response.json();
+
+      dishList.value = data;
+    };
+
+    const ClickOptions = (opt) => {
+      filteredList.value = dishList.value.filter((data) => {
+        return data.category === opt.label;
+      });
+
+      opt.click = true;
+
+      OptionsData.value.forEach((data) => {
+        if (data.label !== opt.label) {
+          data.click = false;
+        }
+      });
+
+      if (opt.label === "all") {
+        filteredList.value = dishList.value;
+        opt.click = true;
+
+        OptionsData.value.forEach((data) => {
+          if (data.label !== "all") {
+            data.click = false;
+          }
+        });
+      }
+    };
+
+    const ClickDish = async (data) => {
+      if (userStore.isAuthenticated) {
+        showOrderPage.value = true;
+
+        orderList.value.name = data.name;
+        orderList.value.description = data.description;
+        orderList.value.price = data.price;
+        orderList.value.image = data.image;
+
+        dishAmount.value = 1;
+      } else {
+        errorStore.LoadError("請先登入帳號!");
+
+        await errorStore.CloseLoadEle();
+        router.push("/login");
+      }
+    };
+
+    const HandleGuide = async () => {
+      const userMail = localStorage.getItem("userEmail");
+
+      const responseData = await userStore.init(userMail);
+
+      if (!responseData.dishClicked) {
+        showDishClickGuide.value = true;
+      }
+    };
+
+    const CloseDishGuide = async () => {
+      const userMail = localStorage.getItem("userEmail");
+
+      const responseData = await userStore.init(userMail);
+
+      if (showDishClickGuide.value) {
+        showDishClickGuide.value = false;
+
+        userStore.modifyUserData(responseData.id, "dishClicked", true);
+      }
+    };
+
+    const CloseCartGuide = async () => {
+      const userMail = localStorage.getItem("userEmail");
+
+      const responseData = await userStore.init(userMail);
+
+      if (showCartGuide.value) {
+        showCartGuide.value = false;
+
+        userStore.modifyUserData(responseData.id, "putInCartClicked", true);
+      }
+    };
+
+    onMounted(async () => {
+      showText.value = true;
+      showElement.value = true;
+
+      showMobile.value = false;
+
+      await GetDishData();
+
+      filteredList.value = dishList.value;
+
+      OptionsData.value.forEach((data) => {
+        if (data.label === "all") {
+          data.click = true;
+        }
+      });
+
+      HandleGuide();
+    });
+
+    return {
+      OptionsDataRaw,
+      OptionsData,
+      showMobile,
+      orderList,
+      dishList,
+      filteredList,
+      showOrderPage,
+      showCartGuide,
+      showText,
+      showElement,
+      showDishClickGuide,
+      showMenuGuide,
+      ClickOptions,
+      ClickDish,
+      HandleGuide,
+      CloseDishGuide,
+      CloseCartGuide,
+    };
+  },
+};
+</script>
+
+<style scoped>
+.menu-page {
+  padding-bottom: 50px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+}
+.title {
+  color: #f0c42d;
+  font-size: 35px;
+  font-weight: bold;
+  margin: 20px 0;
+}
+.container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+.options-frame {
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.option {
+  width: 80px;
+  color: #272727;
+  font-size: 20px;
+  background-color: #ffffff;
+  border: 1px solid #f0c42d;
+  border-radius: 20px;
+  margin: 10px;
+  padding: 10px;
+  transition: all 0.3s ease;
+}
+.option:hover {
+  color: #ffffff;
+  background-color: #f0c42d;
+  cursor: pointer;
+}
+.active {
+  color: #ffffff;
+  background-color: #f0c42d;
+}
+.dish-box-frame {
+  width: 90%;
+  display: grid;
+  grid-template-columns: repeat(3, 30%);
+  grid-template-rows: auto;
+  gap: 20px;
+  justify-content: center;
+  align-items: center;
+}
+.dish-frame {
+  width: 300px;
+  background-color: #ffffff;
+  border: 1px solid #f0c42d;
+  border-radius: 20px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  transition: all 0.3s ease;
+}
+.dish-frame:hover {
+  cursor: pointer;
+  transform: scale(1.05);
+}
+.dish-frame img {
+  width: 250px;
+}
+.dish-info-frame {
+  width: 100%;
+  font-size: 24px;
+  margin-top: 10px;
+  padding-top: 15px;
+  border-top: 1px solid #f0c42d;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.dish-price {
+  color: #f0c42d;
+}
+#help-btn {
+  font-size: 26px;
+  color: #f0c42d;
+  position: fixed;
+  bottom: 20px;
+  left: 20px;
+  z-index: 2;
+  cursor: pointer;
+}
+
+.order-page,
+.dish-guide,
+.menu-guide {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 99;
+}
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.4);
+  z-index: 98;
+}
+
+.slide-enter-active,
+.slide-leave-active {
+  transition: all 1s ease;
+}
+.slide-enter-from,
+.slide-leave-to {
+  opacity: 0;
+  transform: translateY(20px);
+}
+.slide-enter-to,
+.slide-leave-from {
+  opacity: 1;
+  transform: translateY(0);
+}
+.fade-enter-active,
+.fade-leave-active {
+  transition: all 1s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+.fade-enter-to,
+.fade-leave-from {
+  opacity: 1;
+}
+.slide-order-enter-active,
+.slide-order-leave-active {
+  transition: all 1s ease;
+}
+.slide-order-enter-from,
+.slide-order-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -50%) translateY(20px);
+}
+.slide-order-enter-to,
+.slide-order-leave-from {
+  opacity: 1;
+  transform: translate(-50%, -50%) translateY(0);
+}
+.slide-guide-enter-active,
+.slide-guide-leave-active {
+  transition: all 1s ease;
+}
+.slide-guide-enter-from,
+.slide-guide-leave-to {
+  opacity: 0;
+  transform: translateX(-100%) translate(-50%, -50%);
+}
+.slide-guide-enter-to,
+.slide-guide-leave-from {
+  opacity: 1;
+  transform: translateX(0) translate(-50%, -50%);
+}
+
+@media (max-width: 1250px) {
+  .dish-box-frame {
+    width: auto;
+    grid-template-columns: repeat(2, 50%);
+    grid-template-rows: auto;
+    gap: 30px;
+  }
+}
+@media (max-width: 1000px) {
+  .container {
+    flex-direction: row;
+    position: relative;
+  }
+  .options-frame {
+    margin-right: 30px;
+    flex-direction: column;
+    position: absolute;
+    top: 0px;
+    left: 20px;
+  }
+  .dish-box-frame {
+    margin-left: 140px;
+  }
+  .dish-frame {
+    width: 250px;
+  }
+  .dish-frame img {
+    width: 200px;
+  }
+}
+@media (max-width: 800px) {
+  .dish-box-frame {
+    margin-left: 120px;
+    grid-template-columns: 100%;
+  }
+}
+@media (max-width: 480px) {
+  .dish-info-frame {
+    font-size: 20px;
+  }
+  .dish-frame {
+    width: 180px;
+  }
+  .dish-frame img {
+    width: 120px;
+  }
+  .option {
+    width: 60px;
+    font-size: 18px;
+    padding: 6px;
+  }
+}
+</style>

@@ -1,0 +1,14 @@
+FROM maven:3.9-eclipse-temurin-17 AS build
+WORKDIR /build
+COPY backend/pom.xml backend/pom.xml
+COPY backend/src backend/src
+RUN mvn -f backend/pom.xml -B package
+
+FROM eclipse-temurin:17-jre
+WORKDIR /app
+COPY --from=build /build/backend/target/backend-1.0.0.jar app.jar
+COPY public/data /app/seed/data
+COPY public/images /app/seed/images
+ENV MENU_SEED_DIR=/app/seed MENU_DATA_DIR=/app/storage
+EXPOSE 3000
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

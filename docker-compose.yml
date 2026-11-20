@@ -1,0 +1,27 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: dockerfile
+    ports:
+      - "8080:3000"
+    environment:
+      MONGO_URL: mongodb://mongo:27017/west_food
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in the environment}
+      FRONTEND_URL: http://localhost:8080
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-disabled}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-disabled}
+      GOOGLE_CALLBACK_URL: http://localhost:8080/api/auth-callback
+    volumes:
+      - menu-data:/app/storage
+    depends_on:
+      - mongo
+
+  mongo:
+    image: mongo:7
+    volumes:
+      - mongo-data:/data/db
+
+volumes:
+  mongo-data:
+  menu-data:

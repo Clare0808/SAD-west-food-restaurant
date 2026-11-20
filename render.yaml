@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: west-food-restaurant
+    runtime: docker
+    dockerfilePath: ./dockerfile
+    dockerContext: .
+    healthCheckPath: /data/dishData.json
+    envVars:
+      - key: MONGO_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: MENU_DATA_DIR
+        value: /app/storage
+      - key: MENU_SEED_DIR
+        value: /app/seed
+    disk:
+      name: menu-data
+      mountPath: /app/storage
+      sizeGB: 1
