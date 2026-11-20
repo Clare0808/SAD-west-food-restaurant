@@ -2,6 +2,7 @@ services:
   - type: web
     name: west-food-restaurant
     runtime: docker
+    plan: free
     dockerfilePath: ./dockerfile
     dockerContext: .
     healthCheckPath: /data/dishData.json
@@ -14,7 +15,3 @@ services:
         value: /app/storage
       - key: MENU_SEED_DIR
         value: /app/seed
-    disk:
-      name: menu-data
-      mountPath: /app/storage
-      sizeGB: 1

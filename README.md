@@ -49,7 +49,7 @@
 
 ### 1. Clone 專案
 ```bash
-git clone https://github.com/Clare0808/west-food-restaurant.git
+git clone https://github.com/Clare0808/SAD-west-food-restaurant.git
 ```
 
 ### 2. 安裝套件
@@ -115,11 +115,14 @@ docker compose up --build
 
 開啟 `http://localhost:8080`；`http://localhost:8080/data/dishData.json` 可檢查菜單 API。Compose 使用同一個前後端映像和本地 MongoDB，資料分別保存在 `menu-data`、`mongo-data` volumes；停止用 `docker compose down`（不要加 `-v`，否則會刪除資料）。前端修改後重新執行 `docker compose up --build`；若要即時更新，可沿用上面的 `npm run start` 開發模式（需自行啟動本機 MongoDB）。Docker 模式與開發模式都使用 8080，請勿同時佔用該埠。
 
-### Render（單一 Docker Web Service）
+### Render 免費部署（單一 Docker Web Service）
 
-1. 準備外部 MongoDB（例如 MongoDB Atlas），建立資料庫使用者並允許 Render 的來源 IP 連線。Render 上的 `MONGO_URL` 必須是可連線的完整 URI，**不可**使用 `mongo` 或 `localhost`。資料庫不包含在 Render Docker 映像中。
-2. 將此專案（包含未提交的新檔案）推送至 Git 儲存庫。在 Render 選 **New → Blueprint**，連接此 repo；根目錄使用專案根目錄，`render.yaml` 會建立一個 Docker Web Service。或手動建立 Docker Web Service，Dockerfile 路徑設為 `./dockerfile`、context 設為 `.`、磁碟掛載到 `/app/storage`（至少 1 GB）。磁碟需要支援 persistent disk 的付費方案。
-3. Blueprint 提示時填寫 `MONGO_URL`；`JWT_SECRET` 由 Blueprint 自動產生（手動建立時請自行設定）。待部署完成後，以 Render 提供的 `https://<服務名稱>.onrender.com` 開啟首頁、`/menu` 和 `/data/dishData.json` 驗證。Vue 網頁、API、圖片全部由同一個網址提供；Render 會自動提供 `PORT`。
-4. 如需 Google 登入，於 Render 環境變數新增 `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`GOOGLE_CALLBACK_URL=https://<服務名稱>.onrender.com/api/auth-callback`；Google Cloud Console 的 redirect URI 設為相同網址。若不使用 Google 登入，可不設定，但登入按鈕不會正常完成 OAuth。單一網域不需要 `FRONTEND_URL`；本地 Compose 會自動設為 `http://localhost:8080`。
+1. 建立外部 MongoDB 免費資料庫（例如 MongoDB Atlas M0），設定資料庫使用者與網路存取規則，取得可由 Render 連線的完整 `mongodb+srv://...` URI。密碼中的特殊字元須做 URL 編碼；`MONGO_URL` **不可**填 `mongo` 或 `localhost`。不要把密碼或連線字串提交到 Git。
+2. 在 Render 選 **New → Web Service**（不是 Static Site），連接 `Clare0808/SAD-west-food-restaurant` 的 `main` 分支。Language 選 **Docker**、Instance Type 選 **Free**、Root Directory 留空；Dockerfile Path 設為 `./dockerfile`（檔名小寫），如有 Build Context Directory 欄位則設為 `.`。不要新增 Persistent Disk。Health Check Path 可設為 `/data/dishData.json`。
+3. 在服務的 Environment 中加入 `MONGO_URL`（Atlas URI）和 `JWT_SECRET`（自行產生的長隨機字串）。`PORT` 由 Render 提供，`MENU_DATA_DIR`、`MENU_SEED_DIR` 已在 Dockerfile 設定；**不要**直接複製上方本機環境變數範例。確認計費畫面顯示 **Free** 後建立服務。
+4. 也可以使用 **New → Blueprint**：目前 `render.yaml` 已明確設為 `plan: free` 且不包含付費磁碟；建立時填入 `MONGO_URL`，`JWT_SECRET` 會自動產生。若 Render 預覽仍顯示付費，請先核對連接的是此 repo 的最新 `main`，或改用上方的手動 Web Service 流程；不要確認任何付費項目。
+5. 部署完成後開啟 `https://<服務名稱>.onrender.com`、`/menu` 和 `/data/dishData.json` 檢查；若啟動失敗請看 Render 的 Logs。Vue 網頁、API、圖片都由同一個網址提供。
 
-菜單 JSON 和後台上傳圖片寫入 `/app/storage`（Render 磁碟），初始內容從 `/app/seed` 讀取。磁碟不會保存到 Git，本地和 Render 的修改不會自動同步。無持久化磁碟重新部署會遺失修改；若不能使用付費磁碟，需先改為外部檔案儲存。**公開部署前請先補上後端管理 API 的認證／授權**（目前允許未登入者存取管理 API），並更改 `Startup.java` 的預設管理員密碼 `admin123`；目前設定不適合公開正式環境。
+如需 Google 登入，在 Render 加入 `GOOGLE_CLIENT_ID`、`GOOGLE_CLIENT_SECRET`、`GOOGLE_CALLBACK_URL=https://<服務名稱>.onrender.com/api/auth-callback`，並在 Google Cloud Console 設定相同的 redirect URI。單一網域不需 `FRONTEND_URL`；不用 Google 登入則可以不設定 OAuth 變數。
+
+**免費方案限制：**Render Free 會在閒置後休眠、重啟與部署時重建容器，且無法掛載持久化磁碟。MongoDB 中的使用者、訂單等資料保存在外部資料庫；菜單 JSON 和上傳圖片仍寫在 `/app/storage`，**每次容器重啟或重新部署會遺失這些線上修改**，並回到映像內 `/app/seed` 的初始菜單／圖片。若需要永久保存線上新增菜單及圖片，須先改用外部持久化儲存；本地 Docker Compose 的 volumes 不受此限制。**公開部署前請先補上後端管理 API 的認證／授權**（目前允許未登入者存取管理 API），並更改 `Startup.java` 的預設管理員密碼 `admin123`；目前設定不適合公開正式環境。
