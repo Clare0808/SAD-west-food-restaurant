@@ -15,3 +15,7 @@ services:
         value: /app/storage
       - key: MENU_SEED_DIR
         value: /app/seed
+      - key: GOOGLE_CALLBACK_URL
+        value: https://west-food-restaurant.onrender.com/api/auth-callback
+      - key: FRONTEND_URL
+        value: https://west-food-restaurant.onrender.com

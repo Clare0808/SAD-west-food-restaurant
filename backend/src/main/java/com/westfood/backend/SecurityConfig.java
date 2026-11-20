@@ -36,7 +36,7 @@ public class SecurityConfig {
                         .authorizationRequestResolver(googleResolver(registrations)))
                         .redirectionEndpoint(endpoint -> endpoint.baseUri("/api/auth-callback"))
                         .successHandler(successHandler(frontendUrl))
-                        .failureHandler((request, response, error) -> response.sendRedirect(frontendUrl + "/login")))
+                        .failureHandler((request, response, error) -> response.sendRedirect(redirectBase(frontendUrl) + "/login")))
                 .build();
     }
 
@@ -66,7 +66,7 @@ public class SecurityConfig {
             String email = principal.getAttribute("email");
             String googleId = principal.getAttribute("sub");
             if (email == null || googleId == null) {
-                response.sendRedirect(frontendUrl + "/login");
+                response.sendRedirect(redirectBase(frontendUrl) + "/login");
                 return;
             }
             Map<String, Object> user = store.find("logins", "email", email);
@@ -85,8 +85,14 @@ public class SecurityConfig {
                 store.update("logins", user.get("_id").toString(), "provider", "google");
             }
             request.getSession(true).setAttribute("googleUserId", user.get("_id"));
-            response.sendRedirect(frontendUrl);
+            response.sendRedirect(redirectBase(frontendUrl) + "/");
         };
+    }
+
+    private static String redirectBase(String frontendUrl) {
+        if (!frontendUrl.isBlank()) return frontendUrl.replaceAll("/+$", "");
+        // A relative redirect stays on the same origin (Render or the local dev proxy).
+        return "";
     }
 
     @Bean
